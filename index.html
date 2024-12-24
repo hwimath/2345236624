@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>휘매쓰 연산 챌린지!</title>
+  <!-- MathJax for 수식 렌더링 -->
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script id="MathJax-script" async
+          src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js">
+  </script>
+  <style>
+    body {
+      margin: 0; padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #ffffff, #f2f2f2);
+      color: #333;
+    }
+    header, main, footer {
+      max-width: 800px; margin: auto; padding: 1rem;
+    }
+    header h1 {
+      text-align: center;
+      color: #333;
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+    .difficulty-select {
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+    .difficulty-select button {
+      margin: 0.5rem;
+      padding: 0.5rem 1rem;
+      border: none; border-radius: 4px;
+      font-size: 1rem; cursor: pointer;
+      transition: background 0.3s;
+    }
+    .difficulty-select button:hover {
+      background: #ddd;
+    }
+    #quiz-container {
+      display: none;
+      text-align: center;
+      margin-top: 2rem;
+    }
+    .energy-bar-container {
+      width: 60%;
+      height: 20px;
+      background-color: #ccc;
+      margin: 0.5rem auto;
+      border-radius: 10px;
+      position: relative;
+    }
+    .energy-bar {
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      background-color: #ff6666;
+      width: 100%;
+      border-radius: 10px;
+      transition: width 1s linear;
+    }
+    .info-panel {
+      display: flex;
+      justify-content: space-around;
+      margin-top: 1rem;
+      font-size: 1.1rem;
+    }
+    .question {
+      font-size: 1.5rem;
+      margin: 2rem 0 1rem 0;
+    }
+    .answer-input {
+      font-size: 1rem;
+      padding: 0.4rem;
+      width: 100px;
+      text-align: center;
+    }
+    .submit-btn {
+      margin-left: 0.5rem;
+      padding: 0.4rem 0.8rem;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .result-msg {
+      margin-top: 1rem;
+      font-weight: bold;
+      min-height: 2rem;
+    }
+    footer {
+      text-align: center;
+      margin-top: 4rem;
+      color: #777;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>휘매쓰 연산 챌린지!</h1>
+    <div class="difficulty-select">
+      <p>난이도를 선택하세요</p>
+      <button onclick="startGame('hardest')">최상 (20초, +20점)</button>
+      <button onclick="startGame('hard')">상 (30초, +15점)</button>
+      <button onclick="startGame('medium')">중 (40초, +13점)</button>
+      <button onclick="startGame('easy')">하 (시간제한 없음, +10점)</button>
+    </div>
+  </header>
+
+  <main id="quiz-container">
+    <!-- 에너지 바 -->
+    <div class="energy-bar-container">
+      <div class="energy-bar" id="energy-bar"></div>
+    </div>
+
+    <!-- 정보 패널(남은 기회, 총 시간, 점수) -->
+    <div class="info-panel">
+      <div id="lives-info">남은 기회: 3</div>
+      <div id="total-time-info">총 게임 시간: 0초</div>
+      <div id="score-info">점수: 0</div>
+    </div>
+
+    <!-- 문제 표시 영역 -->
+    <div class="question" id="question-area"></div>
+    <div>
+      <input type="text" class="answer-input" id="answer-input" placeholder="답 입력" />
+      <button class="submit-btn" onclick="submitAnswer()">확인</button>
+    </div>
+    <div class="result-msg" id="result-msg"></div>
+  </main>
+
+  <footer>
+    &copy; 2023 휘매쓰 연산 챌린지!
+  </footer>
+
+  <script>
+    /******************************************************************
+     * 1. 문제 데이터 (총 70문제)
+     *    - 문제와 답 모두 ‘끝자리 0’을 제거
+     ******************************************************************/
+    const problemSet = [
+      // ====== (1) 먼저 10문제 (답에 0.015625 포함) ======
+      { q: "0.8 ÷ 2",    a: "0.4" },
+      { q: "3.12 ÷ 4",   a: "0.78" },
+      { q: "12.25 ÷ 7",  a: "1.75" },
+      { q: "2.5 ÷ 5",    a: "0.5" },
+      { q: "6.4 ÷ 8",    a: "0.8" },
+      { q: "0.125 ÷ 8",  a: "0.015625" },
+      { q: "1.75 ÷ 7",   a: "0.25" },
+      { q: "3.75 ÷ 15",  a: "0.25" },
+      { q: "5.2 ÷ 4",    a: "1.3" },
+      { q: "4.8 ÷ 16",   a: "0.3" },
+
+      // ====== (2) 이어서 60문제 ======
+      // 1세트 (1~10)
+      { q: "0.04 ÷ 4",   a: "0.01" },
+      { q: "0.08 ÷ 2",   a: "0.04" },
+      { q: "0.12 ÷ 10",  a: "0.012" },
+      { q: "0.2 ÷ 5",    a: "0.04" },
+      { q: "0.24 ÷ 4",   a: "0.06" },
+      { q: "0.28 ÷ 2",   a: "0.14" },
+      { q: "0.4 ÷ 20",   a: "0.02" },
+      { q: "0.44 ÷ 4",   a: "0.11" },
+      { q: "0.48 ÷ 2",   a: "0.24" },
+      { q: "0.5 ÷ 25",   a: "0.02" },
+
+      // 2세트 (11~20)
+      { q: "0.56 ÷ 4",   a: "0.14" },
+      { q: "0.6 ÷ 2",    a: "0.3" },
+      { q: "0.64 ÷ 10",  a: "0.064" },
+      { q: "0.72 ÷ 5",   a: "0.144" },
+      { q: "0.8 ÷ 4",    a: "0.2" },
+      { q: "0.88 ÷ 2",   a: "0.44" },
+      { q: "0.92 ÷ 20",  a: "0.046" },
+      { q: "1 ÷ 4",      a: "0.25" },  // 1.00 -> 1
+      { q: "1.04 ÷ 2",   a: "0.52" },
+      { q: "1.2 ÷ 25",   a: "0.048" },  // 1.20 -> 1.2
+
+      // 3세트 (21~30)
+      { q: "1.28 ÷ 4",   a: "0.32" },
+      { q: "1.32 ÷ 2",   a: "0.66" },
+      { q: "1.36 ÷ 10",  a: "0.136" },
+      { q: "1.44 ÷ 5",   a: "0.288" },
+      { q: "1.6 ÷ 4",    a: "0.4" },   // 1.60 -> 1.6
+      { q: "1.68 ÷ 2",   a: "0.84" },
+      { q: "1.76 ÷ 20",  a: "0.088" },
+      { q: "2 ÷ 4",      a: "0.5" },  // 2.00 -> 2
+      { q: "2.2 ÷ 2",    a: "1.1" },  // 2.20 -> 2.2
+      { q: "2.24 ÷ 25",  a: "0.0896" },
+
+      // 4세트 (31~40)
+      { q: "2.4 ÷ 4",    a: "0.6" },  // 2.40 -> 2.4, 답도 0.60->0.6
+      { q: "2.44 ÷ 2",   a: "1.22" },
+      { q: "2.48 ÷ 10",  a: "0.248" },
+      { q: "2.56 ÷ 5",   a: "0.512" },
+      { q: "2.6 ÷ 4",    a: "0.65" }, // 2.60 -> 2.6
+      { q: "2.64 ÷ 2",   a: "1.32" },
+      { q: "2.72 ÷ 20",  a: "0.136" },
+      { q: "3 ÷ 4",      a: "0.75" }, // 3.00 -> 3
+      { q: "3.2 ÷ 2",    a: "1.6" },  // 3.20 -> 3.2, 답도 1.60->1.6
+      { q: "3.44 ÷ 25",  a: "0.1376" },
+
+      // 5세트 (41~50)
+      { q: "4 ÷ 4",      a: "1" },   // 4.00 -> 4, 답 1.00->1
+      { q: "4.04 ÷ 2",   a: "2.02" },
+      { q: "4.08 ÷ 10",  a: "0.408" },
+      { q: "4.12 ÷ 5",   a: "0.824" },
+      { q: "4.2 ÷ 4",    a: "1.05" }, // 4.20 -> 4.2
+      { q: "4.24 ÷ 2",   a: "2.12" },
+      { q: "4.4 ÷ 20",   a: "0.22" }, // 4.40 -> 4.4
+      { q: "4.44 ÷ 4",   a: "1.11" },
+      { q: "4.48 ÷ 2",   a: "2.24" },
+      { q: "4.5 ÷ 25",   a: "0.18" }, // 4.50 -> 4.5
+
+      // 6세트 (51~60)
+      { q: "5 ÷ 4",      a: "1.25" }, // 5.00 -> 5
+      { q: "5.04 ÷ 2",   a: "2.52" },
+      { q: "5.2 ÷ 10",   a: "0.52" }, // 5.20 -> 5.2
+      { q: "5.28 ÷ 5",   a: "1.056" },
+      { q: "5.4 ÷ 4",    a: "1.35" }, // 5.40 -> 5.4
+      { q: "5.44 ÷ 2",   a: "2.72" },
+      { q: "5.48 ÷ 20",  a: "0.274" },
+      { q: "5.6 ÷ 4",    a: "1.4" },  // 5.60 -> 5.6, 답 1.40->1.4
+      { q: "5.64 ÷ 2",   a: "2.82" },
+      { q: "5.8 ÷ 25",   a: "0.232" } // 5.80 -> 5.8
+    ];
+
+    /******************************************************************
+     * 전역 변수
+     ******************************************************************/
+    let shuffledProblems = [];   // 무작위 섞인 문제들
+    let currentIndex = 0;       // 현재 문제 인덱스
+    let score = 0;              // 점수
+    let lives = 3;              // 남은 기회
+    let totalGameTime = 0;      // 전체 게임 시간(초)
+    let gameTimer;              // 전체 게임 시간 타이머
+    let timeLimitTimer;         // 개별 문제(에너지바) 타이머
+    let difficulty = "easy";    // 기본 난이도
+    let timeLimit = Infinity;   // 난이도별 남은 시간
+    let energyBarWidth = 100;   // 에너지바 폭(%)
+
+    // 난이도별 점수
+    const difficultyScores = {
+      "hardest": 20,
+      "hard": 15,
+      "medium": 13,
+      "easy": 10
+    };
+    // 난이도별 초기 시간
+    const difficultyTime = {
+      "hardest": 20,
+      "hard": 30,
+      "medium": 40,
+      "easy": Infinity
+    };
+
+    /******************************************************************
+     * 유틸 함수
+     ******************************************************************/
+    // 배열 무작위 섞기 (Fisher-Yates shuffle)
+    function shuffleArray(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function startGame(selectedDifficulty) {
+      // 난이도 세팅
+      difficulty = selectedDifficulty;
+      timeLimit = difficultyTime[difficulty];
+      // 점수/목숨/총시간 리셋
+      score = 0;
+      lives = 3;
+      totalGameTime = 0;
+      currentIndex = 0;
+
+      // 문제 셔플
+      shuffledProblems = shuffleArray(problemSet.slice()); // 복제 후 섞기
+
+      // 화면 갱신
+      document.getElementById("lives-info").textContent = "남은 기회: " + lives;
+      document.getElementById("score-info").textContent = "점수: " + score;
+      document.getElementById("total-time-info").textContent = "총 게임 시간: 0초";
+
+      // 메인 화면 보이기
+      document.getElementById("quiz-container").style.display = "block";
+
+      // 난이도 선택 버튼 숨기기
+      const diffSelect = document.querySelector(".difficulty-select");
+      if (diffSelect) diffSelect.style.display = "none";
+
+      // 전체 게임 시간 타이머 시작
+      clearInterval(gameTimer);
+      gameTimer = setInterval(() => {
+        totalGameTime++;
+        document.getElementById("total-time-info").textContent
+          = "총 게임 시간: " + totalGameTime + "초";
+      }, 1000);
+
+      // 첫 문제 표시
+      showNextProblem();
+    }
+
+    function showNextProblem() {
+      // 모든 문제 소진 시, 다시 섞어 무한 반복
+      if (currentIndex >= shuffledProblems.length) {
+        currentIndex = 0;
+        shuffledProblems = shuffleArray(problemSet.slice());
+      }
+
+      const problem = shuffledProblems[currentIndex];
+      // 수식 렌더링
+      document.getElementById("question-area").innerHTML = 
+        `\\(${problem.q} = \\; ?\\)`;
+      document.getElementById("answer-input").value = "";
+      document.getElementById("result-msg").textContent = "";
+
+      if (window.MathJax) {
+        window.MathJax.typesetPromise();
+      }
+
+      // 에너지바 초기화
+      energyBarWidth = 100;
+      document.getElementById("energy-bar").style.width = energyBarWidth + "%";
+
+      // 기존 타이머 중단
+      clearInterval(timeLimitTimer);
+
+      // 난이도별 제한시간(하=∞이면 제한 없음)
+      if (timeLimit !== Infinity) {
+        let timeLeft = timeLimit;
+        timeLimitTimer = setInterval(() => {
+          timeLeft--;
+          energyBarWidth = (timeLeft / timeLimit) * 100;
+          document.getElementById("energy-bar").style.width = energyBarWidth + "%";
+
+          if (timeLeft <= 0) {
+            // 시간 초과 → 기회 1 감소 후 다음 문제
+            clearInterval(timeLimitTimer);
+            loseLifeAndNext("시간 초과! (기회 1 감소)");
+          }
+        }, 1000);
+      } else {
+        // 시간 제한 없음
+        document.getElementById("energy-bar").style.width = "100%";
+      }
+    }
+
+    function submitAnswer() {
+      const userAnswer = document.getElementById("answer-input").value.trim();
+      if (!userAnswer) return; // 빈칸이면 무시
+
+      const problem = shuffledProblems[currentIndex];
+      const correctAnswer = problem.a;
+
+      if (userAnswer === correctAnswer) {
+        // 정답
+        score += difficultyScores[difficulty];
+        document.getElementById("score-info").textContent = "점수: " + score;
+        document.getElementById("result-msg").textContent = "정답!";
+      } else {
+        // 오답 → 정답 보여주고 기회 1 감소
+        document.getElementById("result-msg").textContent
+          = `오답! 정답은 ${correctAnswer} 입니다.`;
+        loseLifeAndNext();
+        return;
+      }
+
+      // 다음 문제
+      currentIndex++;
+      setTimeout(showNextProblem, 1000);
+    }
+
+    function loseLifeAndNext(msg) {
+      if (msg) {
+        document.getElementById("result-msg").textContent = msg;
+      }
+      lives--;
+      document.getElementById("lives-info").textContent = "남은 기회: " + lives;
+      if (lives <= 0) {
+        // 게임 종료
+        endGame();
+      } else {
+        currentIndex++;
+        setTimeout(showNextProblem, 1500);
+      }
+    }
+
+    function endGame() {
+      clearInterval(gameTimer);
+      clearInterval(timeLimitTimer);
+      alert("게임 종료! 당신의 점수는 " + score + "점 입니다.");
+      location.reload();
+    }
+  </script>
+</body>
+</html>
